@@ -1,6 +1,5 @@
-package br.com.igorssk.br.com.igorssk
+package br.com.igorssk.inbound.lambda
 import br.com.igorssk.domain.dtos.SignUpRequestDto
-import br.com.igorssk.inbound.lambda.SignUpHandler
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -9,7 +8,6 @@ import org.junit.jupiter.api.Test
 import java.util.logging.Logger
 
 class SignUpHandlerTest {
-
     @Test
     fun testHandler() {
         val handler = SignUpHandler()
@@ -23,7 +21,6 @@ class SignUpHandlerTest {
         val response = handler.execute(request)
         Logger.getLogger(this::class.java.name).info(response.toString())
         assertEquals(200, response.statusCode.toInt())
-        assertEquals("{\"message\":\"Hello World\"}", response.body)
         handler.close()
     }
 }

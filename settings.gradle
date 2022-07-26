@@ -1,8 +1,6 @@
-
 rootProject.name="auth"
 
 include 'adapters'
 include 'application'
 include 'common'
-include 'infrastructure'
 
