@@ -5,7 +5,7 @@ import br.com.igorssk.domain.entities.User
 
 interface UserAccessManagerPort {
     fun signUp(user: User): SignUpResponseDto
-    fun verifyUser()
-    fun resendVerificationToken()
-    fun authenticate()
+    fun verifyUser(username: String, token: String)
+    fun resendVerificationToken(username: String)
+    fun authenticate(username: String, password: String)
 }
