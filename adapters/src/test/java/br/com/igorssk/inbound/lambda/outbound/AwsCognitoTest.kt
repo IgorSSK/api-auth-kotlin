@@ -19,22 +19,29 @@ class AwsCognitoTest {
 
     @BeforeEach
     fun beforeEach(){
-        user = User("878aa827-2e26-417d-8302-c2756c42e9a6", "igor-lock@hotmail.com", "Teste@100", "Igor S Silva", "+5534992760462")
+        user = User("a37d9c7d-e4cf-443d-954e-6b1672b93984", "igor-lock@hotmail.com", "Teste@100", "Igor S Silva", "+5534992760462")
+    }
+
+    @Test
+    fun `should create user with AWS Cognito`() {
+        cognito.signUp(user)
     }
 
     @Test
     fun `should authenticate with AWS Cognito`() {
-        cognito.authenticate(user.id, user.password)
+        val userToken = cognito.authenticate(user.id, user.password)
+
+        assert(userToken.accessToken.isNotEmpty())
     }
 
     @Test
     fun `should resend verification code`() {
-        cognito.resendVerificationToken(user.id)
+        cognito.sendOtpToken(user.id)
     }
 
     @Test
     fun `should return ok for verification code`() {
-        val token = "439480"
-        cognito.verifyUser(user.id, token)
+        val token = "923708"
+        cognito.confirmSignUp(user.id, token)
     }
 }

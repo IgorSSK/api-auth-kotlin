@@ -2,8 +2,12 @@ package br.com.igorssk.outbound
 
 import aws.sdk.kotlin.services.cognitoidentityprovider.CognitoIdentityProviderClient
 import aws.sdk.kotlin.services.cognitoidentityprovider.model.*
+import aws.smithy.kotlin.runtime.client.SdkLogMode
+import br.com.igorssk.domain.dtos.DestinatioType
+import br.com.igorssk.domain.dtos.OtpTokenResponseDto
 import br.com.igorssk.domain.dtos.SignUpResponseDto
 import br.com.igorssk.domain.entities.User
+import br.com.igorssk.domain.entities.UserToken
 import br.com.igorssk.ports.outbound.UserAccessManagerPort
 import br.com.igorssk.extensions.safeAwait
 import io.micronaut.context.annotation.Bean
@@ -19,6 +23,11 @@ private const val CLIENT_SECRET = "2fpivsu7euc1lihs7kgmdfae62os8jaf282vnhdae2t5u
 
 @Bean
 class AwsCognito : UserAccessManagerPort {
+    private val cognitoClient = CognitoIdentityProviderClient {
+        region = "us-east-1"
+        sdkLogMode = SdkLogMode.LogResponseWithBody
+    }
+
     private fun calculateSecretHash(userName: String): String {
         val macSha256Algorithm = "HmacSHA256"
         val signingKey = SecretKeySpec(
@@ -46,55 +55,57 @@ class AwsCognito : UserAccessManagerPort {
         )
 
         val request = SignUpRequest {
-            username = user.email;
-            clientId = CLIENT_ID;
-            password = user.password;
-            userAttributes = attributes;
+            username = user.email
+            clientId = CLIENT_ID
+            password = user.password
+            userAttributes = attributes
             secretHash = calculateSecretHash(user.email)
         }
 
-        val response = CognitoIdentityProviderClient {
-            region = "us-east-1"
-        }.safeAwait { client -> client.signUp(request) }
+        val response = cognitoClient.safeAwait { client -> client.signUp(request) }
 
         return SignUpResponseDto(response.userSub ?: "")
     }
 
-    override fun verifyUser(username: String, token: String) {
-        val input = ConfirmSignUpRequest{
+    override fun confirmSignUp(username: String, otpToken: String) {
+        val input = ConfirmSignUpRequest {
             this.username = username
             clientId = CLIENT_ID
-            confirmationCode = token
+            confirmationCode = otpToken
             secretHash = calculateSecretHash(username)
         }
 
-        val response = CognitoIdentityProviderClient {
-            region = "us-east-1"
-        }.safeAwait { client -> client.confirmSignUp(input) }
+        cognitoClient.safeAwait { client -> client.confirmSignUp(input) }
     }
 
-    override fun resendVerificationToken(username: String) {
-        val input = ResendConfirmationCodeRequest{
+    override fun sendOtpToken(username: String): OtpTokenResponseDto {
+        val input = ResendConfirmationCodeRequest {
             this.username = username
             clientId = CLIENT_ID
             secretHash = calculateSecretHash(username)
         }
 
-        val response = CognitoIdentityProviderClient {
-            region = "us-east-1"
-        }.safeAwait { client -> client.resendConfirmationCode(input) }
+        val response = cognitoClient.safeAwait { client -> client.resendConfirmationCode(input) }
+
+        return response.codeDeliveryDetails?.let { OtpTokenResponseDto(it.destination.toString(), DestinatioType.valueOf(it.deliveryMedium?.value ?: "")) } ?: throw Exception()
     }
 
-    override fun authenticate(username: String, password: String) {
-        val input = AdminInitiateAuthRequest{
+    override fun authenticate(username: String, password: String): UserToken {
+        val input = AdminInitiateAuthRequest {
             authFlow = AuthFlowType.AdminUserPasswordAuth
-            authParameters = mapOf("USERNAME" to username, "PASSWORD" to password, "SECRET_HASH" to calculateSecretHash(username))
+            authParameters =
+                mapOf("USERNAME" to username, "PASSWORD" to password, "SECRET_HASH" to calculateSecretHash(username))
             clientId = CLIENT_ID
             userPoolId = POOL_ID
         }
 
-        val response = CognitoIdentityProviderClient {
-            region = "us-east-1"
-        }.safeAwait { client -> client.adminInitiateAuth(input) }
+        val response = cognitoClient.safeAwait { client -> client.adminInitiateAuth(input) }
+
+        return response.authenticationResult?.let {
+            if (it.accessToken.isNullOrEmpty() || it.tokenType.isNullOrEmpty() || it.refreshToken.isNullOrEmpty())
+                throw Exception()
+
+            UserToken(it.accessToken!!, it.expiresIn, it.tokenType!!, it.refreshToken!!)
+        } ?: throw Exception()
     }
 }
